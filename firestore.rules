@@ -1,0 +1,176 @@
+rules_version = '2';
+
+// Love Alarm - Firestore security rules.
+//
+// Paste this whole file into Firebase console > Firestore Database > Rules and press Publish.
+//
+// Data model (field names match app/src/main/java/com/lovealarm/app/data/Models.kt):
+//   users/{uid}                    name, timeZone, fcmToken, pairId
+//   pairCodes/{code}               pairId, createdBy, createdAt
+//   pairs/{pairId}                 members (max 2 uids), createdAt, code
+//   pairs/{pairId}/tiles/{tileId}  ownerUid, text, order, createdAt
+//   pairs/{pairId}/alerts/{id}     fromUid, toUid, text, type, replyTo, createdAt, pushStatus
+//
+// The sender container on the home server uses the Admin SDK, which ignores these rules.
+// That is how it can update alerts.pushStatus even though clients cannot.
+//
+// Anything not matched below is denied.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------- helpers
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function pairPath(pairId) {
+      return /databases/$(database)/documents/pairs/$(pairId);
+    }
+
+    // True when the signed-in user is one of the members of pairs/{pairId}.
+    // If the pair does not exist, get() fails and the rule denies.
+    function isMember(pairId) {
+      return isSignedIn() && request.auth.uid in get(pairPath(pairId)).data.members;
+    }
+
+    // A plain string between min and max characters long.
+    function isText(value, min, max) {
+      return value is string && value.size() >= min && value.size() <= max;
+    }
+
+    // ---------------------------------------------------------------- users
+
+    // Users may only write these keys, with these types.
+    function validUser(data) {
+      return data.keys().hasOnly(['name', 'timeZone', 'fcmToken', 'pairId'])
+        && (!('name' in data) || isText(data.name, 1, 30))
+        && (!('timeZone' in data) || data.timeZone is string)
+        && (!('fcmToken' in data) || data.fcmToken is string)
+        && (!('pairId' in data) || data.pairId is string);
+    }
+
+    // pairId may only point at a pair the user really is a member of (or be empty).
+    function pairIdAllowed(newPairId, oldPairId) {
+      return newPairId == '' || newPairId == oldPairId || isMember(newPairId);
+    }
+
+    match /users/{uid} {
+      // You can read your own document. You can read your partner's document once you
+      // have a pairId and they are in that pair's member list (even if they have not
+      // finished onboarding and written their own pairId yet).
+      allow read: if isSignedIn() && (
+        request.auth.uid == uid
+        || uid in get(pairPath(
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.pairId
+           )).data.members
+      );
+
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && validUser(request.resource.data)
+        && pairIdAllowed(request.resource.data.get('pairId', ''), '');
+
+      allow update: if isSignedIn()
+        && request.auth.uid == uid
+        && validUser(request.resource.data)
+        && pairIdAllowed(request.resource.data.get('pairId', ''), resource.data.get('pairId', ''));
+
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------- pairCodes
+
+    match /pairCodes/{code} {
+      // Anyone signed in can look up a single code they were given.
+      allow get: if isSignedIn();
+
+      // Listing codes is only allowed for members of the pair the code belongs to,
+      // so nobody can browse every code. The app only lists with pairId == <their pair>.
+      allow list: if isSignedIn() && isMember(resource.data.pairId);
+
+      // A code is created in the same write as its pair (one transaction), so getAfter()
+      // sees the new pair. The creator must be its only member and the codes must match.
+      // A code that already exists cannot be overwritten (that would be an update).
+      allow create: if isSignedIn()
+        && code.matches('^[A-Z0-9]{6}$')
+        && request.resource.data.keys().hasOnly(['pairId', 'createdBy', 'createdAt'])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.pairId is string
+        && getAfter(pairPath(request.resource.data.pairId)).data.members == [request.auth.uid]
+        && getAfter(pairPath(request.resource.data.pairId)).data.code == code;
+
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------- pairs
+
+    match /pairs/{pairId} {
+      // Members can always read their pair. Someone holding the code can read the pair
+      // while it still has a free seat, so the app can check it before joining.
+      // Pair ids are random and only reachable through a code.
+      allow get: if isSignedIn() && (
+        request.auth.uid in resource.data.members
+        || resource.data.members.size() < 2
+      );
+
+      // Queries must be "members array-contains <my uid>".
+      allow list: if isSignedIn() && request.auth.uid in resource.data.members;
+
+      // A new pair starts with only its creator in it.
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['members', 'createdAt', 'code'])
+        && request.resource.data.members == [request.auth.uid]
+        && request.resource.data.code is string;
+
+      // The only change ever allowed: a second person adds themselves.
+      // The first member stays first, nothing else changes (createdAt and code included).
+      allow update: if isSignedIn()
+        && resource.data.members.size() == 1
+        && request.resource.data.members.size() == 2
+        && request.resource.data.members[0] == resource.data.members[0]
+        && request.resource.data.members[1] == request.auth.uid
+        && request.auth.uid != resource.data.members[0]
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']);
+
+      allow delete: if false;
+
+      // ------------------------------------------------------------ tiles
+
+      match /tiles/{tileId} {
+        allow read: if isMember(pairId);
+
+        allow create: if isMember(pairId)
+          && request.resource.data.ownerUid == request.auth.uid
+          && isText(request.resource.data.text, 1, 120);
+
+        // Only the owner can change or remove their own tiles, and cannot hand them to someone else.
+        allow update: if isMember(pairId)
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == request.auth.uid
+          && isText(request.resource.data.text, 1, 120);
+
+        allow delete: if isMember(pairId)
+          && resource.data.ownerUid == request.auth.uid;
+      }
+
+      // ------------------------------------------------------------ alerts
+
+      match /alerts/{alertId} {
+        allow read: if isMember(pairId);
+
+        // Clients can only create pending alerts from themselves to someone in the pair.
+        // pushStatus is moved on by the sender (Admin SDK), never by the app.
+        allow create: if isMember(pairId)
+          && request.resource.data.fromUid == request.auth.uid
+          && request.resource.data.toUid in get(pairPath(pairId)).data.members
+          && request.resource.data.pushStatus == 'pending'
+          && isText(request.resource.data.text, 1, 120)
+          && request.resource.data.type in ['tile', 'reply'];
+
+        allow update, delete: if false;
+      }
+    }
+  }
+}

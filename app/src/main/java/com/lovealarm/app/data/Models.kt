@@ -59,6 +59,9 @@ data class PairInfo(
     fun partnerOf(uid: String): String? = members.firstOrNull { it != uid }
 }
 
+/** Result of [PairRepository.createPairWithId]. */
+data class CreatedPair(val pairId: String, val code: String)
+
 /** pairs/{pairId}/tiles/{tileId}, or a built-in preset (isPreset = true, id = "preset-N"). */
 data class Tile(
     val id: String = "",

@@ -31,9 +31,17 @@ interface UserRepository {
     suspend fun updateFcmToken(uid: String, token: String)
 }
 
+/**
+ * Contract: [createPair], [createPairWithId] and [joinPair] only change pairs/ and pairCodes/. They never write
+ * users/{uid}.pairId — onboarding does that itself at the end of its last step, because RootViewModel leaves
+ * onboarding the moment that field appears. [findPairsForUser] recovers the pair if the app died in between.
+ */
 interface PairRepository {
     /** Creates a new pair with [uid] as its first member and returns the 6-character code to share. */
     suspend fun createPair(uid: String): String
+
+    /** Same as [createPair] but also returns the new pair's id, so onboarding can watch it fill up. */
+    suspend fun createPairWithId(uid: String): CreatedPair
 
     /** Joins the pair behind [code]. Returns the pairId. Throws [LoveAlarmException] if the code is wrong or the pair is full. */
     suspend fun joinPair(uid: String, code: String): String
@@ -43,6 +51,9 @@ interface PairRepository {
 
     /** The code that was used to create this pair, for showing in Settings. */
     suspend fun getPairCode(pairId: String): String?
+
+    /** Every pair [uid] is a member of: full pairs first, then newest first. */
+    suspend fun findPairsForUser(uid: String): List<PairInfo>
 }
 
 interface TileRepository {
