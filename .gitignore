@@ -1,0 +1,23 @@
+# Secrets — never commit these
+google-services.json
+*.jks
+*.keystore
+keystore.properties
+serviceAccountKey.json
+secrets/
+
+# Build output
+build/
+.gradle/
+*.apk
+*.aab
+local.properties
+
+# IDE / OS leftovers
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Sender
+sender/node_modules/
