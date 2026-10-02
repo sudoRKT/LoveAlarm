@@ -1,0 +1,16 @@
+services:
+  love-alarm-sender:
+    build: .
+    container_name: love-alarm-sender
+    restart: unless-stopped
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/serviceAccountKey.json
+      MAX_AGE_MINUTES: "30"
+      TZ: Europe/London
+    volumes:
+      - ./secrets/serviceAccountKey.json:/secrets/serviceAccountKey.json:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"

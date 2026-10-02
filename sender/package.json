@@ -1,0 +1,17 @@
+{
+  "name": "love-alarm-sender",
+  "version": "1.0.0",
+  "description": "Watches Firestore for pending Love Alarm alerts and sends them as FCM pushes.",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.0"
+  }
+}
