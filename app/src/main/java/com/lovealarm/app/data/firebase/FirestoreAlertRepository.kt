@@ -6,7 +6,7 @@ import com.google.firebase.firestore.Query
 import com.lovealarm.app.data.Alert
 import com.lovealarm.app.data.AlertRepository
 import com.lovealarm.app.data.AlertType
-import com.lovealarm.app.data.Collections
+import com.lovealarm.app.data.FsCollections
 import com.lovealarm.app.data.Fields
 import com.lovealarm.app.data.LoveAlarmException
 import com.lovealarm.app.data.MAX_TILE_TEXT_LENGTH
@@ -21,7 +21,7 @@ class FirestoreAlertRepository(
 ) : AlertRepository {
 
     private fun alerts(pairId: String) =
-        db.collection(Collections.PAIRS).document(pairId).collection(Collections.ALERTS)
+        db.collection(FsCollections.PAIRS).document(pairId).collection(FsCollections.ALERTS)
 
     override suspend fun sendAlert(
         pairId: String,

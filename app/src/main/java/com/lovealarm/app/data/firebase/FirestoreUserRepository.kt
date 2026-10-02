@@ -2,7 +2,7 @@ package com.lovealarm.app.data.firebase
 
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
-import com.lovealarm.app.data.Collections
+import com.lovealarm.app.data.FsCollections
 import com.lovealarm.app.data.Fields
 import com.lovealarm.app.data.LoveAlarmException
 import com.lovealarm.app.data.UserProfile
@@ -16,7 +16,7 @@ class FirestoreUserRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
 ) : UserRepository {
 
-    private fun doc(uid: String) = db.collection(Collections.USERS).document(uid)
+    private fun doc(uid: String) = db.collection(FsCollections.USERS).document(uid)
 
     override fun observeUser(uid: String): Flow<UserProfile?> = callbackFlow {
         val registration = doc(uid).addSnapshotListener { snapshot, error ->

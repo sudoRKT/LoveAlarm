@@ -3,7 +3,7 @@ package com.lovealarm.app.data
 import com.google.firebase.Timestamp
 
 /** Firestore collection and field names. One place, so the rules, the app and the sender agree. */
-object Collections {
+object FsCollections {
     const val USERS = "users"
     const val PAIR_CODES = "pairCodes"
     const val PAIRS = "pairs"
