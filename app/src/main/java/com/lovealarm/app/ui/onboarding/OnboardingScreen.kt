@@ -237,6 +237,9 @@ private fun WaitingForPartner(state: OnboardingUiState, viewModel: OnboardingVie
         Text("Waiting for your person to join…", style = MaterialTheme.typography.bodyMedium, color = InkSoft)
     }
     ErrorText(state.error)
+    OutlinedButton(onClick = viewModel::continueWithoutPartner, modifier = Modifier.fillMaxWidth()) {
+        Text("Continue now — they can join later")
+    }
     TextButton(onClick = viewModel::showJoin) { Text("I have a code instead") }
 }
 

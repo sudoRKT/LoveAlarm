@@ -160,6 +160,13 @@ class OnboardingViewModel(
         }
     }
 
+    /** From the waiting screen: go on without the partner. They can still join with the code later. */
+    fun continueWithoutPartner() {
+        val pairId = _state.value.pairId
+        if (pairId.isBlank()) return
+        goToNotifications(pairId)
+    }
+
     fun showJoin() {
         waitJob?.cancel()
         _state.update { it.copy(pairMode = PairMode.JOIN, error = null, busy = false, pairId = "", createdCode = "") }
