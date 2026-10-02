@@ -1,7 +1,8 @@
 name: Release
 
 # Builds a signed release APK.
-# Push a tag like v1.0.0 and this attaches LoveAlarm-v1.0.0.apk (plus its sha256) to a GitHub Release.
+# Push a tag like v1.0.0, or publish a Release with a new tag from the GitHub website, and this attaches
+# LoveAlarm-v1.0.0.apk (plus its sha256) to that GitHub Release (creating it if it does not exist yet).
 # Running it by hand (Actions tab -> Release -> Run workflow) builds the same APK as a downloadable
 # artifact but does not publish a Release.
 # Needs five repository secrets: GOOGLE_SERVICES_JSON, KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD.
@@ -9,6 +10,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 concurrency:
@@ -125,9 +128,15 @@ jobs:
 
           Full instructions: https://github.com/$GITHUB_REPOSITORY#readme
           EOF
-          gh release create "$TAG" "LoveAlarm-$TAG.apk" "LoveAlarm-$TAG.apk.sha256" \
-            --title "Love Alarm $TAG" \
-            --notes-file release-notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; attaching the APK to it."
+            gh release upload "$TAG" "LoveAlarm-$TAG.apk" "LoveAlarm-$TAG.apk.sha256" --clobber
+            gh release edit "$TAG" --title "Love Alarm $TAG" --notes-file release-notes.md
+          else
+            gh release create "$TAG" "LoveAlarm-$TAG.apk" "LoveAlarm-$TAG.apk.sha256" \
+              --title "Love Alarm $TAG" \
+              --notes-file release-notes.md
+          fi
 
       - name: Remove signing key
         if: always()
